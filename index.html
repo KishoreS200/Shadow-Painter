@@ -109,6 +109,37 @@
             margin: 0;
         }
 
+        .mode-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .mode-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+        }
+
+        .mode-name {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .mode-desc {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 11px;
+            margin-left: auto;
+        }
+
         .settings-close {
             background: none;
             border: none;
@@ -390,7 +421,14 @@
 
     <div id="settingsPanel" class="settings-panel">
         <div class="settings-header">
-            <h2>Settings</h2>
+            <div>
+                <h2>Settings</h2>
+                <div class="mode-indicator">
+                    <div class="mode-color" id="modeColor"></div>
+                    <div class="mode-name" id="modeName">Glow</div>
+                    <div class="mode-desc" id="modeDesc">Soft ambient glows</div>
+                </div>
+            </div>
             <button class="settings-close" aria-label="Close settings">✕</button>
         </div>
         <div class="settings-content">
@@ -427,6 +465,18 @@
                     <div class="button-group">
                         <button class="toggle-btn active" data-theme="dark" aria-pressed="true">Dark</button>
                         <button class="toggle-btn" data-theme="light" aria-pressed="false">Light</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Background Pattern</label>
+                    <div class="button-group" style="grid-template-columns: 1fr 1fr 1fr;">
+                        <button class="toggle-btn active" data-pattern="auto" aria-pressed="true" title="Follows effect mode">Auto</button>
+                        <button class="toggle-btn" data-pattern="electric-grid" aria-pressed="false" title="Electric grid on dark">Grid</button>
+                        <button class="toggle-btn" data-pattern="soft-dots" aria-pressed="false" title="Soft dot pattern">Dots</button>
+                        <button class="toggle-btn" data-pattern="starfield" aria-pressed="false" title="Deep space starfield">Space</button>
+                        <button class="toggle-btn" data-pattern="paper-texture" aria-pressed="false" title="Paper texture">Paper</button>
+                        <button class="toggle-btn" data-pattern="clean" aria-pressed="false" title="Clean minimal">Clean</button>
                     </div>
                 </div>
             </div>
@@ -495,10 +545,15 @@
                 </div>
 
                 <div class="control-group">
-                    <label>Effect Mode</label>
-                    <div class="button-group">
-                        <button class="toggle-btn active" data-effect="glow" aria-pressed="true">Glow</button>
-                        <button class="toggle-btn" data-effect="trails" aria-pressed="false">Trails</button>
+                    <label>Effect Mode
+                        <span class="control-value" id="modeDescription">Soft ambient glows and light</span>
+                    </label>
+                    <div class="button-group" style="grid-template-columns: 1fr 1fr 1fr;">
+                        <button class="toggle-btn active" data-effect="glow" aria-pressed="true" title="Soft ambient glows and light">Glow</button>
+                        <button class="toggle-btn" data-effect="neon" aria-pressed="false" title="Vibrant glows with electric colors">Neon</button>
+                        <button class="toggle-btn" data-effect="lightTrails" aria-pressed="false" title="Motion blur with ethereal trails">Trails</button>
+                        <button class="toggle-btn" data-effect="inkEffect" aria-pressed="false" title="Desaturated spreads and smears">Ink</button>
+                        <button class="toggle-btn" data-effect="classicShadow" aria-pressed="false" title="Traditional dark shadows">Shadow</button>
                     </div>
                 </div>
 
@@ -566,7 +621,8 @@
                         shadowColor: '#ff6b6b',
                         gradientPrimary: '#ff6b6b',
                         particleColor: '#4ecdc4',
-                        backgroundTheme: 'dark'
+                        backgroundTheme: 'dark',
+                        backgroundPattern: 'auto'
                     },
                     interaction: {
                         brushSize: 5,
@@ -597,6 +653,10 @@
                 this.setupEventListeners();
                 this.setupControls();
                 this.setupSettingsPanel();
+                
+                // Initialize current mode
+                this.switchEffectMode(this.config.artistic.effectMode);
+                
                 this.animate();
                 
                 this.gradientStops = [
@@ -607,6 +667,342 @@
                     { color: '#ffeaa7', alpha: 0.8 },
                     { color: '#dda0dd', alpha: 0.8 }
                 ];
+
+                // Effect Modes Registry
+                this.modeRegistry = {
+                    neon: {
+                        name: 'Neon',
+                        description: 'Vibrant glows with electric colors',
+                        palette: [
+                            { color: '#ff0080', alpha: 1.0 },
+                            { color: '#00ff80', alpha: 1.0 },
+                            { color: '#8000ff', alpha: 1.0 },
+                            { color: '#ffff00', alpha: 1.0 },
+                            { color: '#00ffff', alpha: 1.0 },
+                            { color: '#ff4000', alpha: 1.0 }
+                        ],
+                        blendingMode: 'screen',
+                        particleBehavior: {
+                            glowIntensity: 1.5,
+                            spreadFactor: 0.8,
+                            lifeMultiplier: 1.2,
+                            sizeMultiplier: 1.3
+                        },
+                        shadowBehavior: {
+                            blurMultiplier: 2.0,
+                            opacityMultiplier: 1.4,
+                            radiusMultiplier: 1.5,
+                            colorIntensity: 1.8
+                        },
+                        backgroundTheme: 'dark',
+                        backgroundPattern: 'electric-grid',
+                        globalComposite: 'screen'
+                    },
+                    glow: {
+                        name: 'Glow',
+                        description: 'Soft ambient glows and light',
+                        palette: [
+                            { color: '#ffb3ba', alpha: 0.9 },
+                            { color: '#b3d9ff', alpha: 0.9 },
+                            { color: '#b3ffb3', alpha: 0.9 },
+                            { color: '#ffffb3', alpha: 0.9 },
+                            { color: '#d9b3ff', alpha: 0.9 },
+                            { color: '#ffb3d9', alpha: 0.9 }
+                        ],
+                        blendingMode: 'source-over',
+                        particleBehavior: {
+                            glowIntensity: 1.0,
+                            spreadFactor: 1.0,
+                            lifeMultiplier: 1.0,
+                            sizeMultiplier: 1.0
+                        },
+                        shadowBehavior: {
+                            blurMultiplier: 1.0,
+                            opacityMultiplier: 1.0,
+                            radiusMultiplier: 1.0,
+                            colorIntensity: 1.0
+                        },
+                        backgroundTheme: 'dark',
+                        backgroundPattern: 'soft-dots',
+                        globalComposite: 'source-over'
+                    },
+                    lightTrails: {
+                        name: 'Light Trails',
+                        description: 'Motion blur with ethereal trails',
+                        palette: [
+                            { color: '#ffffff', alpha: 0.7 },
+                            { color: '#e6f3ff', alpha: 0.7 },
+                            { color: '#cce6ff', alpha: 0.7 },
+                            { color: '#b3d9ff', alpha: 0.7 },
+                            { color: '#99ccff', alpha: 0.7 },
+                            { color: '#80bfff', alpha: 0.7 }
+                        ],
+                        blendingMode: 'lighter',
+                        particleBehavior: {
+                            glowIntensity: 0.8,
+                            spreadFactor: 2.0,
+                            lifeMultiplier: 2.5,
+                            sizeMultiplier: 0.7
+                        },
+                        shadowBehavior: {
+                            blurMultiplier: 3.0,
+                            opacityMultiplier: 0.6,
+                            radiusMultiplier: 2.0,
+                            colorIntensity: 0.8
+                        },
+                        backgroundTheme: 'dark',
+                        backgroundPattern: 'starfield',
+                        globalComposite: 'lighter'
+                    },
+                    inkEffect: {
+                        name: 'Ink',
+                        description: 'Desaturated spreads and smears',
+                        palette: [
+                            { color: '#4a4a4a', alpha: 0.8 },
+                            { color: '#6a6a6a', alpha: 0.8 },
+                            { color: '#8a8a8a', alpha: 0.8 },
+                            { color: '#3a3a3a', alpha: 0.8 },
+                            { color: '#5a5a5a', alpha: 0.8 },
+                            { color: '#7a7a7a', alpha: 0.8 }
+                        ],
+                        blendingMode: 'multiply',
+                        particleBehavior: {
+                            glowIntensity: 0.3,
+                            spreadFactor: 2.5,
+                            lifeMultiplier: 1.8,
+                            sizeMultiplier: 1.6
+                        },
+                        shadowBehavior: {
+                            blurMultiplier: 1.5,
+                            opacityMultiplier: 1.2,
+                            radiusMultiplier: 1.8,
+                            colorIntensity: 0.6
+                        },
+                        backgroundTheme: 'light',
+                        backgroundPattern: 'paper-texture',
+                        globalComposite: 'multiply'
+                    },
+                    classicShadow: {
+                        name: 'Classic Shadow',
+                        description: 'Traditional dark shadows',
+                        palette: [
+                            { color: '#2c1810', alpha: 0.9 },
+                            { color: '#4a2c17', alpha: 0.9 },
+                            { color: '#1a0e08', alpha: 0.9 },
+                            { color: '#3d2514', alpha: 0.9 },
+                            { color: '#5d3a1a', alpha: 0.9 },
+                            { color: '#1c1209', alpha: 0.9 }
+                        ],
+                        blendingMode: 'multiply',
+                        particleBehavior: {
+                            glowIntensity: 0.2,
+                            spreadFactor: 1.2,
+                            lifeMultiplier: 0.8,
+                            sizeMultiplier: 1.0
+                        },
+                        shadowBehavior: {
+                            blurMultiplier: 0.8,
+                            opacityMultiplier: 1.5,
+                            radiusMultiplier: 0.9,
+                            colorIntensity: 0.4
+                        },
+                        backgroundTheme: 'light',
+                        backgroundPattern: 'clean',
+                        globalComposite: 'source-over'
+                    }
+                };
+
+                this.currentMode = this.config.artistic.effectMode;
+            }
+
+            // Palette interpolation helpers
+            interpolateColor(color1, color2, factor) {
+                const rgb1 = this.hexToRgb(color1);
+                const rgb2 = this.hexToRgb(color2);
+                
+                const r = Math.round(rgb1.r + (rgb2.r - rgb1.r) * factor);
+                const g = Math.round(rgb1.g + (rgb2.g - rgb1.g) * factor);
+                const b = Math.round(rgb1.b + (rgb2.b - rgb1.b) * factor);
+                
+                return `rgb(${r}, ${g}, ${b})`;
+            }
+
+            hexToRgb(hex) {
+                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                return result ? {
+                    r: parseInt(result[1], 16),
+                    g: parseInt(result[2], 16),
+                    b: parseInt(result[3], 16)
+                } : null;
+            }
+
+            rgbToHex(r, g, b) {
+                return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+            }
+
+            getInterpolatedPalette(modeName, steps = 10) {
+                const mode = this.modeRegistry[modeName];
+                if (!mode) return [];
+
+                const interpolated = [];
+                const palette = mode.palette;
+
+                for (let i = 0; i < palette.length - 1; i++) {
+                    const current = palette[i];
+                    const next = palette[i + 1];
+                    
+                    for (let step = 0; step < steps; step++) {
+                        const factor = step / steps;
+                        const color = this.interpolateColor(
+                            current.color, 
+                            next.color, 
+                            factor
+                        );
+                        const alpha = current.alpha + (next.alpha - current.alpha) * factor;
+                        
+                        interpolated.push({
+                            color: color,
+                            alpha: alpha,
+                            mode: modeName
+                        });
+                    }
+                }
+
+                // Add the final color
+                const lastColor = palette[palette.length - 1];
+                interpolated.push({
+                    color: lastColor.color,
+                    alpha: lastColor.alpha,
+                    mode: modeName
+                });
+
+                return interpolated;
+            }
+
+            getRandomColorFromMode(modeName) {
+                const mode = this.modeRegistry[modeName];
+                if (!mode) return '#ffffff';
+                
+                const palette = mode.palette;
+                const randomIndex = Math.floor(Math.random() * palette.length);
+                return palette[randomIndex].color;
+            }
+
+            switchEffectMode(modeName) {
+                if (!this.modeRegistry[modeName]) return;
+
+                this.currentMode = modeName;
+                const mode = this.modeRegistry[modeName];
+                
+                // Update config
+                this.config.artistic.effectMode = modeName;
+                
+                // Apply mode-specific settings
+                this.ctx.globalCompositeOperation = mode.globalComposite;
+                
+                // Update background theme for this mode if it doesn't override user choice
+                if (mode.backgroundTheme) {
+                    // Only update if the user hasn't manually set a theme
+                    const themeButtons = document.querySelectorAll('[data-theme]');
+                    const activeThemeBtn = Array.from(themeButtons).find(btn => 
+                        btn.classList.contains('active') && btn.dataset.theme !== mode.backgroundTheme
+                    );
+                    
+                    if (!activeThemeBtn) {
+                        this.applyBackgroundTheme(mode.backgroundTheme);
+                    }
+                    
+                    // Apply background pattern if it's set to auto or if pattern matches auto
+                    const patternButtons = document.querySelectorAll('[data-pattern]');
+                    const activePatternBtn = Array.from(patternButtons).find(btn => btn.classList.contains('active'));
+                    
+                    if (!activePatternBtn || activePatternBtn.dataset.pattern === 'auto') {
+                        if (mode.backgroundPattern) {
+                            this.applyBackgroundPattern(mode.backgroundPattern);
+                        }
+                    }
+                }
+
+                // Visual indicator update will be handled by settings panel
+                this.updateActiveModeIndicator();
+            }
+
+            applyBackgroundPattern(patternType) {
+                switch (patternType) {
+                    case 'electric-grid':
+                        // Dark background with subtle grid lines
+                        document.body.style.background = `
+                            linear-gradient(135deg, #0a0a0a 0%, #1a0a2e 50%, #16213e 100%),
+                            radial-gradient(circle at 25% 25%, rgba(0, 255, 255, 0.1) 0%, transparent 50%),
+                            radial-gradient(circle at 75% 75%, rgba(255, 0, 128, 0.1) 0%, transparent 50%)
+                        `;
+                        break;
+                    case 'soft-dots':
+                        // Dark background with subtle dot pattern
+                        document.body.style.background = `
+                            linear-gradient(135deg, #1e1e2e 0%, #2d1b3d 100%),
+                            radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.05) 1px, transparent 0)
+                        `;
+                        document.body.style.backgroundSize = '20px 20px, 20px 20px';
+                        break;
+                    case 'starfield':
+                        // Deep space background
+                        document.body.style.background = `
+                            radial-gradient(2px 2px at 20px 30px, #eee, transparent),
+                            radial-gradient(2px 2px at 40px 70px, rgba(255, 255, 255, 0.8), transparent),
+                            radial-gradient(1px 1px at 90px 40px, #fff, transparent),
+                            radial-gradient(1px 1px at 130px 80px, rgba(255, 255, 255, 0.6), transparent),
+                            radial-gradient(2px 2px at 160px 30px, #ddd, transparent),
+                            linear-gradient(135deg, #0f0f23 0%, #1a1a3a 50%, #2d1b3d 100%)
+                        `;
+                        document.body.style.backgroundSize = '200px 100px, 300px 200px, 250px 150px, 180px 120px, 220px 140px, 100% 100%';
+                        break;
+                    case 'paper-texture':
+                        // Light paper-like background
+                        document.body.style.background = `
+                            radial-gradient(circle at 25% 25%, rgba(0, 0, 0, 0.02) 0%, transparent 50%),
+                            radial-gradient(circle at 75% 75%, rgba(0, 0, 0, 0.02) 0%, transparent 50%),
+                            linear-gradient(135deg, #f5f5f0 0%, #f0f0e8 100%)
+                        `;
+                        break;
+                    case 'clean':
+                    default:
+                        // Clean light background
+                        document.body.style.background = 'linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%)';
+                        break;
+                }
+            }
+
+            updateActiveModeIndicator() {
+                // Update settings panel to show current mode
+                const effectButtons = document.querySelectorAll('[data-effect]');
+                effectButtons.forEach(btn => {
+                    const isActive = btn.dataset.effect === this.currentMode;
+                    btn.classList.toggle('active', isActive);
+                    btn.setAttribute('aria-pressed', isActive);
+                });
+
+                // Update mode description in effect mode section
+                const mode = this.modeRegistry[this.currentMode];
+                if (mode) {
+                    // Update description in the effect mode section
+                    const descElement = document.getElementById('modeDescription');
+                    if (descElement) {
+                        descElement.textContent = mode.description;
+                    }
+
+                    // Update header mode indicator
+                    const modeColor = document.getElementById('modeColor');
+                    const modeName = document.getElementById('modeName');
+                    const modeDesc = document.getElementById('modeDesc');
+
+                    if (modeColor && modeName && modeDesc) {
+                        modeColor.style.backgroundColor = mode.palette[0].color;
+                        modeColor.style.boxShadow = `0 0 8px ${mode.palette[0].color}`;
+                        modeName.textContent = mode.name;
+                        modeDesc.textContent = mode.description;
+                    }
+                }
             }
 
             resizeCanvas() {
@@ -714,6 +1110,22 @@
                         this.applyBackgroundTheme(btn.dataset.theme);
                     });
                 });
+
+                const patternButtons = document.querySelectorAll('[data-pattern]');
+                patternButtons.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        patternButtons.forEach(b => {
+                            b.classList.remove('active');
+                            b.setAttribute('aria-pressed', 'false');
+                        });
+                        btn.classList.add('active');
+                        btn.setAttribute('aria-pressed', 'true');
+                        this.config.visual.backgroundPattern = btn.dataset.pattern;
+                        this.applyBackgroundPattern(this.config.visual.backgroundPattern === 'auto' 
+                            ? this.modeRegistry[this.currentMode].backgroundPattern 
+                            : this.config.visual.backgroundPattern);
+                    });
+                });
             }
 
             setupInteractionControls() {
@@ -773,13 +1185,11 @@
                 const effectButtons = document.querySelectorAll('[data-effect]');
                 effectButtons.forEach(btn => {
                     btn.addEventListener('click', () => {
-                        effectButtons.forEach(b => {
-                            b.classList.remove('active');
-                            b.setAttribute('aria-pressed', 'false');
-                        });
-                        btn.classList.add('active');
-                        btn.setAttribute('aria-pressed', 'true');
-                        this.config.artistic.effectMode = btn.dataset.effect;
+                        const newMode = btn.dataset.effect;
+                        if (newMode !== this.currentMode) {
+                            // Switch to new effect mode
+                            this.switchEffectMode(newMode);
+                        }
                     });
                 });
 
@@ -835,20 +1245,28 @@
             spawnParticle(speed) {
                 if (!this.config.performance.enableParticles) return;
 
+                const mode = this.modeRegistry[this.currentMode];
                 const baseSize = this.config.interaction.brushSize;
+                
+                // Use mode-specific particle behavior
+                const particleBehavior = mode.particleBehavior;
+                const particleColor = this.getRandomColorFromMode(this.currentMode);
+                
                 const particle = {
-                    x: this.mouse.x + (Math.random() - 0.5) * 20,
-                    y: this.mouse.y + (Math.random() - 0.5) * 20,
+                    x: this.mouse.x + (Math.random() - 0.5) * 20 * particleBehavior.spreadFactor,
+                    y: this.mouse.y + (Math.random() - 0.5) * 20 * particleBehavior.spreadFactor,
                     vx: (Math.random() - 0.5) * speed * 0.1 * this.config.interaction.speedSensitivity,
                     vy: (Math.random() - 0.5) * speed * 0.1 * this.config.interaction.speedSensitivity - 2,
                     gravity: 0.3,
                     friction: this.config.artistic.motion,
                     life: 1.0,
-                    maxLife: 60 + Math.random() * 60,
-                    size: baseSize + Math.random() * baseSize,
-                    color: this.config.visual.particleColor,
-                    alpha: this.config.artistic.opacity,
-                    shape: this.config.artistic.particleShape
+                    maxLife: (60 + Math.random() * 60) * particleBehavior.lifeMultiplier,
+                    size: (baseSize + Math.random() * baseSize) * particleBehavior.sizeMultiplier,
+                    color: particleColor,
+                    alpha: this.config.artistic.opacity * particleBehavior.glowIntensity,
+                    shape: this.config.artistic.particleShape,
+                    glowIntensity: particleBehavior.glowIntensity,
+                    mode: this.currentMode
                 };
                 
                 this.particles.push(particle);
@@ -862,15 +1280,23 @@
             createShadowTrail(dx, dy, speed) {
                 if (!this.config.performance.enableShadows) return;
 
+                const mode = this.modeRegistry[this.currentMode];
+                const shadowBehavior = mode.shadowBehavior;
+                
+                // Use mode-specific shadow behavior with enhanced color from mode palette
+                const shadowColor = this.getRandomColorFromMode(this.currentMode);
+                
                 const shadow = {
                     x: this.mouse.x,
                     y: this.mouse.y,
-                    opacity: Math.min(speed / 50, 1) * this.config.artistic.opacity,
-                    blur: Math.min(speed / 10, this.config.artistic.blur),
-                    radius: Math.max(5, speed / 5),
-                    color: this.config.visual.shadowColor,
+                    opacity: Math.min(speed / 50, 1) * this.config.artistic.opacity * shadowBehavior.opacityMultiplier,
+                    blur: Math.min(speed / 10, this.config.artistic.blur) * shadowBehavior.blurMultiplier,
+                    radius: Math.max(5, speed / 5) * shadowBehavior.radiusMultiplier,
+                    color: shadowColor,
                     life: 1.0,
-                    decay: this.config.artistic.motion
+                    decay: this.config.artistic.motion,
+                    shadowMode: this.currentMode,
+                    colorIntensity: shadowBehavior.colorIntensity
                 };
                 
                 this.shadows.push(shadow);
@@ -955,9 +1381,28 @@
             renderShadows() {
                 this.shadows.forEach(shadow => {
                     this.ctx.save();
+                    
+                    // Apply mode-specific blending and effects
+                    const mode = this.modeRegistry[shadow.shadowMode];
+                    if (mode) {
+                        this.ctx.globalCompositeOperation = mode.blendingMode;
+                    }
+                    
                     this.ctx.globalAlpha = shadow.opacity;
                     this.ctx.filter = `blur(${shadow.blur}px)`;
-                    this.ctx.fillStyle = shadow.color;
+                    
+                    // Apply mode-specific color effects
+                    let renderColor = shadow.color;
+                    if (shadow.colorIntensity !== undefined) {
+                        const rgb = this.hexToRgb(shadow.color);
+                        if (rgb) {
+                            // Apply intensity multiplier
+                            const intensity = shadow.colorIntensity;
+                            renderColor = `rgb(${Math.min(255, rgb.r * intensity)}, ${Math.min(255, rgb.g * intensity)}, ${Math.min(255, rgb.b * intensity)})`;
+                        }
+                    }
+                    
+                    this.ctx.fillStyle = renderColor;
                     
                     this.ctx.beginPath();
                     this.ctx.arc(shadow.x, shadow.y, shadow.radius, 0, Math.PI * 2);
@@ -970,7 +1415,15 @@
             renderParticles() {
                 this.particles.forEach(particle => {
                     this.ctx.save();
-                    this.ctx.globalAlpha = particle.alpha * (particle.life / particle.maxLife);
+                    
+                    // Apply mode-specific blending
+                    const mode = this.modeRegistry[particle.mode];
+                    if (mode) {
+                        this.ctx.globalCompositeOperation = mode.blendingMode;
+                    }
+                    
+                    const alpha = particle.alpha * (particle.life / particle.maxLife);
+                    this.ctx.globalAlpha = alpha;
                     
                     if (particle.shape === 'square') {
                         this.ctx.fillStyle = particle.color;
@@ -981,16 +1434,53 @@
                             particle.size
                         );
                     } else {
-                        const gradient = this.ctx.createRadialGradient(
-                            particle.x, particle.y, 0,
-                            particle.x, particle.y, particle.size
-                        );
-                        gradient.addColorStop(0, particle.color);
-                        gradient.addColorStop(1, 'transparent');
+                        // Create mode-specific gradients
+                        let gradient;
+                        
+                        if (this.currentMode === 'neon') {
+                            // Enhanced glow for neon mode
+                            const glowSize = particle.size * 2;
+                            gradient = this.ctx.createRadialGradient(
+                                particle.x, particle.y, 0,
+                                particle.x, particle.y, glowSize
+                            );
+                            gradient.addColorStop(0, particle.color);
+                            gradient.addColorStop(0.3, particle.color);
+                            gradient.addColorStop(0.7, 'transparent');
+                            gradient.addColorStop(1, 'transparent');
+                        } else if (this.currentMode === 'lightTrails') {
+                            // Motion blur effect
+                            gradient = this.ctx.createLinearGradient(
+                                particle.x - particle.size * 2, particle.y,
+                                particle.x + particle.size * 2, particle.y
+                            );
+                            gradient.addColorStop(0, 'transparent');
+                            gradient.addColorStop(0.5, particle.color);
+                            gradient.addColorStop(1, 'transparent');
+                        } else if (this.currentMode === 'inkEffect') {
+                            // Diffused ink effect
+                            const inkSize = particle.size * 1.5;
+                            gradient = this.ctx.createRadialGradient(
+                                particle.x, particle.y, 0,
+                                particle.x, particle.y, inkSize
+                            );
+                            gradient.addColorStop(0, particle.color);
+                            gradient.addColorStop(0.4, particle.color);
+                            gradient.addColorStop(0.8, 'rgba(0, 0, 0, 0.3)');
+                            gradient.addColorStop(1, 'transparent');
+                        } else {
+                            // Standard gradient for other modes
+                            gradient = this.ctx.createRadialGradient(
+                                particle.x, particle.y, 0,
+                                particle.x, particle.y, particle.size
+                            );
+                            gradient.addColorStop(0, particle.color);
+                            gradient.addColorStop(1, 'transparent');
+                        }
                         
                         this.ctx.fillStyle = gradient;
                         this.ctx.beginPath();
-                        this.ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+                        this.ctx.arc(particle.x, particle.y, particle.size * (particle.glowIntensity || 1), 0, Math.PI * 2);
                         this.ctx.fill();
                     }
                     
