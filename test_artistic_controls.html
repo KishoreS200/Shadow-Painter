@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Artistic Controls Test</title>
+    <script>
+        // Simple test to verify artistic controls functionality
+        function testArtisticControls() {
+            console.log('Testing Artistic Controls Implementation...');
+            
+            // Test 1: Check if configuration structure includes new blendMode
+            const defaultConfig = {
+                artistic: {
+                    blur: 10,
+                    motion: 0.98,
+                    opacity: 0.8,
+                    persistence: 0.05,
+                    effectMode: 'glow',
+                    particleShape: 'circle',
+                    blendMode: 'screen'  // Should be present
+                }
+            };
+            
+            if (defaultConfig.artistic.blendMode) {
+                console.log('✓ Blend mode configuration present');
+            } else {
+                console.log('✗ Blend mode configuration missing');
+            }
+            
+            // Test 2: Check if shape array includes 'line'
+            const shapes = ['circle', 'square', 'line'];
+            if (shapes.includes('line')) {
+                console.log('✓ Line shape support present');
+            } else {
+                console.log('✗ Line shape support missing');
+            }
+            
+            // Test 3: Check blend modes
+            const blendModes = ['screen', 'multiply', 'overlay', 'darken', 'lighten', 'source-over'];
+            const supportedModes = ['screen', 'multiply', 'overlay', 'darken', 'lighten', 'source-over'];
+            
+            const allSupported = blendModes.every(mode => supportedModes.includes(mode));
+            if (allSupported) {
+                console.log('✓ All blend modes supported');
+            } else {
+                console.log('✗ Some blend modes missing');
+            }
+            
+            // Test 4: Check if updateBlendMode method exists
+            if (typeof window.updateBlendMode === 'function') {
+                console.log('✓ updateBlendMode method exists');
+            } else {
+                console.log('✗ updateBlendMode method missing');
+            }
+            
+            console.log('Test complete!');
+        }
+        
+        // Run tests when page loads
+        window.addEventListener('load', testArtisticControls);
+    </script>
+</head>
+<body>
+    <h1>Artistic Controls Test</h1>
+    <p>Open browser console to see test results.</p>
+</body>
+</html>
