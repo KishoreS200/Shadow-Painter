@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shadow Painter - Interactive Art Tool</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #1e1e2e 0%, #2d1b3d 100%);
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #canvas {
+            display: block;
+            cursor: crosshair;
+            background: #0a0a0a;
+        }
+
+        #controls {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.4);
+            transform: translateY(-2px);
+        }
+
+        #info {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 14px;
+            z-index: 10;
+        }
+
+        @media (max-width: 768px) {
+            #controls {
+                top: 10px;
+                left: 10px;
+            }
+            
+            .btn {
+                padding: 8px 16px;
+                font-size: 12px;
+            }
+            
+            #info {
+                bottom: 10px;
+                left: 10px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    
+    <div id="controls">
+        <button class="btn" id="saveBtn">Save Artwork</button>
+        <button class="btn" id="clearBtn">Clear Canvas</button>
+    </div>
+    
+    <div id="info">
+        <div>Move your mouse to create art</div>
+        <div id="fps">FPS: 60</div>
+    </div>
+
+    <script>
+        class ShadowPainter {
+            constructor() {
+                this.canvas = document.getElementById('canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.mouse = { x: 0, y: 0, lastX: 0, lastY: 0, isMoving: false };
+                this.particles = [];
+                this.shadows = [];
+                this.gradientStops = [];
+                this.lastTime = 0;
+                this.fps = 60;
+                this.fpsUpdateTime = 0;
+                
+                this.init();
+            }
+
+            init() {
+                this.resizeCanvas();
+                this.setupEventListeners();
+                this.setupControls();
+                this.animate();
+                
+                // Initialize gradient stops
+                this.gradientStops = [
+                    { color: '#ff6b6b', alpha: 0.8 },
+                    { color: '#4ecdc4', alpha: 0.8 },
+                    { color: '#45b7d1', alpha: 0.8 },
+                    { color: '#96ceb4', alpha: 0.8 },
+                    { color: '#ffeaa7', alpha: 0.8 },
+                    { color: '#dda0dd', alpha: 0.8 }
+                ];
+            }
+
+            resizeCanvas() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+            }
+
+            setupEventListeners() {
+                window.addEventListener('resize', () => this.resizeCanvas());
+                
+                this.canvas.addEventListener('mousemove', (e) => {
+                    const rect = this.canvas.getBoundingClientRect();
+                    this.mouse.x = e.clientX - rect.left;
+                    this.mouse.y = e.clientY - rect.top;
+                    this.mouse.isMoving = true;
+                    
+                    // Calculate movement speed for effects
+                    const dx = this.mouse.x - this.mouse.lastX;
+                    const dy = this.mouse.y - this.mouse.lastY;
+                    const speed = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // Spawn particles based on speed
+                    const particleCount = Math.min(Math.floor(speed / 10), 10);
+                    for (let i = 0; i < particleCount; i++) {
+                        this.spawnParticle(speed);
+                    }
+                    
+                    // Create shadow trail
+                    this.createShadowTrail(dx, dy, speed);
+                    
+                    this.mouse.lastX = this.mouse.x;
+                    this.mouse.lastY = this.mouse.y;
+                });
+
+                this.canvas.addEventListener('mouseleave', () => {
+                    this.mouse.isMoving = false;
+                });
+            }
+
+            setupControls() {
+                document.getElementById('saveBtn').addEventListener('click', () => {
+                    this.saveArtwork();
+                });
+
+                document.getElementById('clearBtn').addEventListener('click', () => {
+                    this.clearCanvas();
+                });
+            }
+
+            spawnParticle(speed) {
+                const particle = {
+                    x: this.mouse.x + (Math.random() - 0.5) * 20,
+                    y: this.mouse.y + (Math.random() - 0.5) * 20,
+                    vx: (Math.random() - 0.5) * speed * 0.1,
+                    vy: (Math.random() - 0.5) * speed * 0.1 - 2,
+                    gravity: 0.3,
+                    friction: 0.98,
+                    life: 1.0,
+                    maxLife: 60 + Math.random() * 60,
+                    size: 2 + Math.random() * 6,
+                    color: this.getRandomColor(),
+                    alpha: 1.0
+                };
+                
+                this.particles.push(particle);
+                
+                // Limit particle count for performance
+                if (this.particles.length > 200) {
+                    this.particles.splice(0, this.particles.length - 200);
+                }
+            }
+
+            createShadowTrail(dx, dy, speed) {
+                const shadow = {
+                    x: this.mouse.x,
+                    y: this.mouse.y,
+                    opacity: Math.min(speed / 50, 1) * 0.8,
+                    blur: Math.min(speed / 10, 20),
+                    radius: Math.max(5, speed / 5),
+                    color: this.getDynamicColor(),
+                    life: 1.0,
+                    decay: 0.98
+                };
+                
+                this.shadows.push(shadow);
+                
+                // Limit shadow count for performance
+                if (this.shadows.length > 100) {
+                    this.shadows.splice(0, this.shadows.length - 100);
+                }
+            }
+
+            getRandomColor() {
+                const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7', '#dda0dd'];
+                return colors[Math.floor(Math.random() * colors.length)];
+            }
+
+            getDynamicColor() {
+                // Create dynamic color based on mouse position
+                const hue = (this.mouse.x + this.mouse.y) / 20;
+                return `hsl(${hue % 360}, 70%, 60%)`;
+            }
+
+            updateParticles() {
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    const particle = this.particles[i];
+                    
+                    // Update physics
+                    particle.vx *= particle.friction;
+                    particle.vy *= particle.friction;
+                    particle.vy += particle.gravity;
+                    
+                    particle.x += particle.vx;
+                    particle.y += particle.vy;
+                    
+                    // Update life
+                    particle.life--;
+                    particle.alpha = particle.life / particle.maxLife;
+                    
+                    // Remove dead particles
+                    if (particle.life <= 0 || particle.alpha <= 0) {
+                        this.particles.splice(i, 1);
+                    }
+                }
+            }
+
+            updateShadows() {
+                for (let i = this.shadows.length - 1; i >= 0; i--) {
+                    const shadow = this.shadows[i];
+                    
+                    shadow.opacity *= shadow.decay;
+                    shadow.blur *= 0.99;
+                    shadow.radius *= 0.98;
+                    
+                    // Remove faded shadows
+                    if (shadow.opacity <= 0.01) {
+                        this.shadows.splice(i, 1);
+                    }
+                }
+            }
+
+            render() {
+                // Create trail effect by drawing semi-transparent black rectangle
+                this.ctx.fillStyle = 'rgba(10, 10, 10, 0.05)';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // Render shadows
+                this.renderShadows();
+                
+                // Render particles
+                this.renderParticles();
+                
+                // Render cursor glow
+                if (this.mouse.isMoving) {
+                    this.renderCursorGlow();
+                }
+            }
+
+            renderShadows() {
+                this.shadows.forEach(shadow => {
+                    this.ctx.save();
+                    this.ctx.globalAlpha = shadow.opacity;
+                    this.ctx.filter = `blur(${shadow.blur}px)`;
+                    this.ctx.fillStyle = shadow.color;
+                    
+                    this.ctx.beginPath();
+                    this.ctx.arc(shadow.x, shadow.y, shadow.radius, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    
+                    this.ctx.restore();
+                });
+            }
+
+            renderParticles() {
+                this.particles.forEach(particle => {
+                    this.ctx.save();
+                    this.ctx.globalAlpha = particle.alpha;
+                    
+                    // Create gradient for particle
+                    const gradient = this.ctx.createRadialGradient(
+                        particle.x, particle.y, 0,
+                        particle.x, particle.y, particle.size
+                    );
+                    gradient.addColorStop(0, particle.color);
+                    gradient.addColorStop(1, 'transparent');
+                    
+                    this.ctx.fillStyle = gradient;
+                    this.ctx.beginPath();
+                    this.ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    
+                    this.ctx.restore();
+                });
+            }
+
+            renderCursorGlow() {
+                const gradient = this.ctx.createRadialGradient(
+                    this.mouse.x, this.mouse.y, 0,
+                    this.mouse.x, this.mouse.y, 30
+                );
+                
+                gradient.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
+                gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.1)');
+                gradient.addColorStop(1, 'transparent');
+                
+                this.ctx.save();
+                this.ctx.globalAlpha = 0.6;
+                this.ctx.fillStyle = gradient;
+                this.ctx.beginPath();
+                this.ctx.arc(this.mouse.x, this.mouse.y, 30, 0, Math.PI * 2);
+                this.ctx.fill();
+                this.ctx.restore();
+            }
+
+            clearCanvas() {
+                this.ctx.fillStyle = '#0a0a0a';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                this.particles = [];
+                this.shadows = [];
+            }
+
+            saveArtwork() {
+                // Create a temporary link and trigger download
+                const link = document.createElement('a');
+                link.download = `shadow-painter-artwork-${Date.now()}.png`;
+                link.href = this.canvas.toDataURL();
+                link.click();
+            }
+
+            updateFPS(currentTime) {
+                if (currentTime - this.fpsUpdateTime >= 1000) {
+                    const deltaTime = currentTime - this.lastTime;
+                    this.fps = Math.round(1000 / deltaTime);
+                    document.getElementById('fps').textContent = `FPS: ${this.fps}`;
+                    this.fpsUpdateTime = currentTime;
+                }
+            }
+
+            animate(currentTime = 0) {
+                const deltaTime = currentTime - this.lastTime;
+                this.lastTime = currentTime;
+
+                this.updateParticles();
+                this.updateShadows();
+                this.render();
+                this.updateFPS(currentTime);
+
+                requestAnimationFrame((time) => this.animate(time));
+            }
+        }
+
+        // Initialize the application when the page loads
+        window.addEventListener('load', () => {
+            new ShadowPainter();
+        });
+    </script>
+</body>
+</html>
