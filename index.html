@@ -649,9 +649,22 @@
 
                 <div class="control-group">
                     <label>Particle Shape</label>
-                    <div class="button-group">
+                    <div class="button-group" style="grid-template-columns: 1fr 1fr 1fr;">
                         <button class="toggle-btn active" data-shape="circle" aria-pressed="true">Circle</button>
                         <button class="toggle-btn" data-shape="square" aria-pressed="false">Square</button>
+                        <button class="toggle-btn" data-shape="line" aria-pressed="false">Line</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Blend Mode</label>
+                    <div class="button-group" style="grid-template-columns: 1fr 1fr 1fr;">
+                        <button class="toggle-btn active" data-blend="screen" aria-pressed="true" title="Screen blend - brightens highlights">Screen</button>
+                        <button class="toggle-btn" data-blend="multiply" aria-pressed="false" title="Multiply blend - darkens colors">Multiply</button>
+                        <button class="toggle-btn" data-blend="overlay" aria-pressed="false" title="Overlay blend - contrast enhancement">Overlay</button>
+                        <button class="toggle-btn" data-blend="darken" aria-pressed="false" title="Darken blend - keeps darker values">Darken</button>
+                        <button class="toggle-btn" data-blend="lighten" aria-pressed="false" title="Lighten blend - keeps lighter values">Lighten</button>
+                        <button class="toggle-btn" data-blend="source-over" aria-pressed="false" title="Normal blend - standard compositing">Normal</button>
                     </div>
                 </div>
             </div>
@@ -787,7 +800,8 @@
                         opacity: 0.8,
                         persistence: 0.05,
                         effectMode: 'glow',
-                        particleShape: 'circle'
+                        particleShape: 'circle',
+                        blendMode: 'screen'
                     },
                     performance: {
                         enableParticles: true,
@@ -1364,6 +1378,8 @@
             }
 
             setupSettingsPanel() {
+                // Set initial blend mode
+                this.updateBlendMode();
                 const settingsBtn = document.getElementById('settingsBtn');
                 const settingsPanel = document.getElementById('settingsPanel');
                 const settingsOverlay = document.getElementById('settingsOverlay');
@@ -1438,6 +1454,26 @@
                             ? this.modeRegistry[this.currentMode].backgroundPattern 
                             : this.config.visual.backgroundPattern);
                     });
+                });
+
+                // Visual color controls
+                const shadowColor = document.getElementById('shadowColor');
+                const gradientPrimary = document.getElementById('gradientPrimary');
+                const particleColor = document.getElementById('particleColor');
+
+                shadowColor.addEventListener('input', (e) => {
+                    this.config.visual.shadowColor = e.target.value;
+                    document.getElementById('shadowColorValue').textContent = e.target.value;
+                });
+
+                gradientPrimary.addEventListener('input', (e) => {
+                    this.config.visual.gradientPrimary = e.target.value;
+                    document.getElementById('gradientPrimaryValue').textContent = e.target.value;
+                });
+
+                particleColor.addEventListener('input', (e) => {
+                    this.config.visual.particleColor = e.target.value;
+                    document.getElementById('particleColorValue').textContent = e.target.value;
                 });
             }
 
@@ -1518,6 +1554,20 @@
                         this.config.artistic.particleShape = btn.dataset.shape;
                     });
                 });
+
+                const blendButtons = document.querySelectorAll('[data-blend]');
+                blendButtons.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        blendButtons.forEach(b => {
+                            b.classList.remove('active');
+                            b.setAttribute('aria-pressed', 'false');
+                        });
+                        btn.classList.add('active');
+                        btn.setAttribute('aria-pressed', 'true');
+                        this.config.artistic.blendMode = btn.dataset.blend;
+                        this.updateBlendMode();
+                    });
+                });
             }
 
             setupPerformanceControls() {
@@ -1563,7 +1613,20 @@
                 
                 // Use mode-specific particle behavior
                 const particleBehavior = mode.particleBehavior;
-                const particleColor = this.getRandomColorFromMode(this.currentMode);
+                
+                // Prioritize user-selected colors over mode palette
+                let particleColor = this.config.visual.particleColor;
+                
+                // If no specific particle color set, use gradient primary as base for some particles
+                if (!particleColor || particleColor === '#4ecdc4') {
+                    if (this.config.visual.gradientPrimary && this.config.visual.gradientPrimary !== '#ff6b6b') {
+                        // Use gradient primary color as base, potentially blend with mode colors
+                        particleColor = Math.random() > 0.5 ? this.config.visual.gradientPrimary : this.getRandomColorFromMode(this.currentMode);
+                    } else {
+                        // Fallback to mode palette
+                        particleColor = this.getRandomColorFromMode(this.currentMode);
+                    }
+                }
                 
                 const particle = {
                     x: this.mouse.x + (Math.random() - 0.5) * 20 * particleBehavior.spreadFactor,
@@ -1596,8 +1659,19 @@
                 const mode = this.modeRegistry[this.currentMode];
                 const shadowBehavior = mode.shadowBehavior;
                 
-                // Use mode-specific shadow behavior with enhanced color from mode palette
-                const shadowColor = this.getRandomColorFromMode(this.currentMode);
+                // Prioritize user-selected shadow color over mode palette
+                let shadowColor = this.config.visual.shadowColor;
+                
+                // If no specific shadow color set, use gradient primary as base for some shadows
+                if (!shadowColor || shadowColor === '#ff6b6b') {
+                    if (this.config.visual.gradientPrimary && this.config.visual.gradientPrimary !== '#ff6b6b') {
+                        // Use gradient primary color as base, potentially blend with mode colors
+                        shadowColor = Math.random() > 0.5 ? this.config.visual.gradientPrimary : this.getRandomColorFromMode(this.currentMode);
+                    } else {
+                        // Fallback to mode palette
+                        shadowColor = this.getRandomColorFromMode(this.currentMode);
+                    }
+                }
                 
                 const shadow = {
                     x: this.mouse.x,
@@ -1629,6 +1703,11 @@
                 // Create dynamic color based on mouse position
                 const hue = (this.mouse.x + this.mouse.y) / 20;
                 return `hsl(${hue % 360}, 70%, 60%)`;
+            }
+
+            updateBlendMode() {
+                // Apply the blend mode immediately to the canvas context
+                this.ctx.globalCompositeOperation = this.config.artistic.blendMode;
             }
 
             updateParticles() {
@@ -1695,11 +1774,8 @@
                 this.shadows.forEach(shadow => {
                     this.ctx.save();
                     
-                    // Apply mode-specific blending and effects
-                    const mode = this.modeRegistry[shadow.shadowMode];
-                    if (mode) {
-                        this.ctx.globalCompositeOperation = mode.blendingMode;
-                    }
+                    // Apply user-controllable blend mode
+                    this.ctx.globalCompositeOperation = this.config.artistic.blendMode;
                     
                     this.ctx.globalAlpha = shadow.opacity;
                     this.ctx.filter = `blur(${shadow.blur}px)`;
@@ -1729,11 +1805,8 @@
                 this.particles.forEach(particle => {
                     this.ctx.save();
                     
-                    // Apply mode-specific blending
-                    const mode = this.modeRegistry[particle.mode];
-                    if (mode) {
-                        this.ctx.globalCompositeOperation = mode.blendingMode;
-                    }
+                    // Apply user-controllable blend mode
+                    this.ctx.globalCompositeOperation = this.config.artistic.blendMode;
                     
                     const alpha = particle.alpha * (particle.life / particle.maxLife);
                     this.ctx.globalAlpha = alpha;
@@ -1746,8 +1819,22 @@
                             particle.size,
                             particle.size
                         );
+                    } else if (particle.shape === 'line') {
+                        // Line shape - draw a streak in the direction of motion
+                        this.ctx.strokeStyle = particle.color;
+                        this.ctx.lineWidth = Math.max(1, particle.size / 4);
+                        this.ctx.lineCap = 'round';
+                        
+                        const trailLength = particle.size * 3;
+                        const dx = particle.vx * trailLength;
+                        const dy = particle.vy * trailLength;
+                        
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(particle.x - dx * 0.5, particle.y - dy * 0.5);
+                        this.ctx.lineTo(particle.x + dx * 0.5, particle.y + dy * 0.5);
+                        this.ctx.stroke();
                     } else {
-                        // Create mode-specific gradients
+                        // Circle shape - create mode-specific gradients
                         let gradient;
                         
                         if (this.currentMode === 'neon') {
