@@ -57,6 +57,17 @@
             outline-offset: 2px;
         }
 
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn:disabled:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: none;
+        }
+
         #settingsBtn {
             position: fixed;
             top: 20px;
@@ -351,6 +362,85 @@
             pointer-events: auto;
         }
 
+        /* Keyboard Hints Overlay */
+        #keyboardHints {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(30, 30, 46, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 16px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 12px;
+            z-index: 50;
+            max-width: 200px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        #keyboardHints.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .hint-item {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+            align-items: center;
+        }
+
+        .hint-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .hint-key {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: 600;
+            min-width: 24px;
+            text-align: center;
+            white-space: nowrap;
+            color: white;
+        }
+
+        .hint-desc {
+            color: rgba(255, 255, 255, 0.7);
+            flex: 1;
+        }
+
+        .clear-button-group {
+            display: flex;
+            gap: 8px;
+        }
+
+        #clearSettingsBtn {
+            flex: 1;
+            padding: 10px 12px;
+            background: rgba(255, 107, 107, 0.15);
+            border: 1px solid rgba(255, 107, 107, 0.3);
+            color: rgba(255, 107, 107, 0.9);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        #clearSettingsBtn:hover {
+            background: rgba(255, 107, 107, 0.25);
+            border-color: rgba(255, 107, 107, 0.5);
+        }
+
+        #clearSettingsBtn:focus {
+            outline: 2px solid rgba(255, 107, 107, 0.6);
+            outline-offset: 2px;
+        }
+
         @media (max-width: 768px) {
             #controls {
                 top: 10px;
@@ -593,10 +683,54 @@
                     <input type="range" id="maxParticles" min="50" max="500" step="50" value="200" aria-label="Maximum particles slider">
                 </div>
             </div>
+
+            <!-- History & Canvas Controls Section -->
+            <div class="settings-section">
+                <h3>Canvas</h3>
+
+                <div class="control-group">
+                    <label>History Depth</label>
+                    <div class="button-group">
+                        <button class="btn" id="undoBtn" title="Undo last action (Z)" style="flex: 1; padding: 8px 12px; margin: 0; font-size: 12px;">↶ Undo</button>
+                        <button class="btn" id="redoBtn" title="Redo last action (R)" style="flex: 1; padding: 8px 12px; margin: 0; font-size: 12px;">↷ Redo</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <button id="clearSettingsBtn" title="Clear canvas (C)">🗑️ Clear Canvas</button>
+                </div>
+            </div>
         </div>
     </div>
 
     <div class="settings-overlay" id="settingsOverlay"></div>
+    
+    <div id="keyboardHints">
+        <div class="hint-item">
+            <span class="hint-key">S</span>
+            <span class="hint-desc">Save</span>
+        </div>
+        <div class="hint-item">
+            <span class="hint-key">C</span>
+            <span class="hint-desc">Clear</span>
+        </div>
+        <div class="hint-item">
+            <span class="hint-key">Z</span>
+            <span class="hint-desc">Undo</span>
+        </div>
+        <div class="hint-item">
+            <span class="hint-key">R</span>
+            <span class="hint-desc">Redo</span>
+        </div>
+        <div class="hint-item">
+            <span class="hint-key">+/-</span>
+            <span class="hint-desc">Brush Size</span>
+        </div>
+        <div class="hint-item">
+            <span class="hint-key">?</span>
+            <span class="hint-desc">Toggle Hints</span>
+        </div>
+    </div>
     
     <div id="info">
         <div>Move your mouse to create art</div>
@@ -604,6 +738,19 @@
     </div>
 
     <script>
+        // Utility debounce function
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
         class ShadowPainter {
             constructor() {
                 this.canvas = document.getElementById('canvas');
@@ -615,6 +762,11 @@
                 this.lastTime = 0;
                 this.fps = 60;
                 this.fpsUpdateTime = 0;
+                
+                // History system
+                this.history = [];
+                this.historyIndex = -1;
+                this.maxHistoryStates = 30;
                 
                 this.config = {
                     visual: {
@@ -815,6 +967,64 @@
                 this.currentMode = this.config.artistic.effectMode;
             }
 
+            // History management methods
+            captureState() {
+                // Capture current canvas state
+                const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Remove any states after current position (for redo functionality)
+                this.history = this.history.slice(0, this.historyIndex + 1);
+                
+                // Add new state
+                this.history.push(imageData);
+                this.historyIndex = this.history.length - 1;
+                
+                // Maintain bounded history
+                if (this.history.length > this.maxHistoryStates) {
+                    this.history.shift();
+                    this.historyIndex--;
+                }
+                
+                this.updateHistoryButtonStates();
+            }
+
+            undo() {
+                if (this.historyIndex > 0) {
+                    this.historyIndex--;
+                    this.restoreState(this.history[this.historyIndex]);
+                    this.updateHistoryButtonStates();
+                }
+            }
+
+            redo() {
+                if (this.historyIndex < this.history.length - 1) {
+                    this.historyIndex++;
+                    this.restoreState(this.history[this.historyIndex]);
+                    this.updateHistoryButtonStates();
+                }
+            }
+
+            restoreState(imageData) {
+                this.ctx.putImageData(imageData, 0, 0);
+                this.particles = [];
+                this.shadows = [];
+            }
+
+            updateHistoryButtonStates() {
+                const undoBtn = document.getElementById('undoBtn');
+                const redoBtn = document.getElementById('redoBtn');
+                
+                if (undoBtn) {
+                    undoBtn.disabled = this.historyIndex <= 0;
+                    undoBtn.style.opacity = this.historyIndex <= 0 ? '0.5' : '1';
+                }
+                
+                if (redoBtn) {
+                    redoBtn.disabled = this.historyIndex >= this.history.length - 1;
+                    redoBtn.style.opacity = this.historyIndex >= this.history.length - 1 ? '0.5' : '1';
+                }
+            }
+
             // Palette interpolation helpers
             interpolateColor(color1, color2, factor) {
                 const rgb1 = this.hexToRgb(color1);
@@ -1013,6 +1223,11 @@
             setupEventListeners() {
                 window.addEventListener('resize', () => this.resizeCanvas());
                 
+                // Create debounced state capture for history
+                this.debouncedCaptureState = debounce(() => {
+                    this.captureState();
+                }, 500);
+                
                 this.canvas.addEventListener('mousemove', (e) => {
                     const rect = this.canvas.getBoundingClientRect();
                     this.mouse.x = e.clientX - rect.left;
@@ -1033,6 +1248,9 @@
                     
                     this.mouse.lastX = this.mouse.x;
                     this.mouse.lastY = this.mouse.y;
+                    
+                    // Capture state periodically during drawing
+                    this.debouncedCaptureState();
                 });
 
                 this.canvas.addEventListener('mouseleave', () => {
@@ -1047,6 +1265,101 @@
 
                 document.getElementById('clearBtn').addEventListener('click', () => {
                     this.clearCanvas();
+                });
+
+                // Settings panel clear button
+                const clearSettingsBtn = document.getElementById('clearSettingsBtn');
+                if (clearSettingsBtn) {
+                    clearSettingsBtn.addEventListener('click', () => {
+                        this.clearCanvas();
+                    });
+                }
+
+                // Undo/Redo buttons
+                const undoBtn = document.getElementById('undoBtn');
+                const redoBtn = document.getElementById('redoBtn');
+                
+                if (undoBtn) {
+                    undoBtn.addEventListener('click', () => this.undo());
+                }
+                if (redoBtn) {
+                    redoBtn.addEventListener('click', () => this.redo());
+                }
+
+                // Keyboard shortcuts
+                this.setupKeyboardShortcuts();
+            }
+
+            setupKeyboardShortcuts() {
+                // Create debounced brush size adjustment
+                const debouncedBrushAdjust = debounce((delta) => {
+                    const brushSizeEl = document.getElementById('brushSize');
+                    const currentValue = parseFloat(brushSizeEl.value);
+                    const newValue = Math.max(1, Math.min(20, currentValue + delta));
+                    brushSizeEl.value = newValue;
+                    this.config.interaction.brushSize = newValue;
+                    document.getElementById('brushSizeValue').textContent = newValue;
+                }, 50);
+
+                document.addEventListener('keydown', (e) => {
+                    const settingsPanel = document.getElementById('settingsPanel');
+                    const isSettingsOpen = settingsPanel.classList.contains('open');
+
+                    // Toggle keyboard hints with '?'
+                    if (e.key === '?') {
+                        e.preventDefault();
+                        const hintsPanel = document.getElementById('keyboardHints');
+                        hintsPanel.classList.toggle('show');
+                        return;
+                    }
+
+                    // Don't process shortcuts if settings panel is focused on text input
+                    const target = e.target;
+                    const isTextInput = target.tagName === 'INPUT' && (target.type === 'text' || target.type === 'color' || target.type === 'range');
+                    if (isTextInput) {
+                        return;
+                    }
+
+                    switch (e.key.toLowerCase()) {
+                        case 's':
+                            if (e.ctrlKey || e.metaKey) return; // Don't override browser save
+                            e.preventDefault();
+                            this.saveArtwork();
+                            break;
+
+                        case 'c':
+                            if (e.ctrlKey || e.metaKey) return; // Don't override browser copy
+                            e.preventDefault();
+                            this.clearCanvas();
+                            break;
+
+                        case 'z':
+                            if (!(e.ctrlKey || e.metaKey)) return; // Use OS shortcut
+                            e.preventDefault();
+                            this.undo();
+                            break;
+
+                        case 'r':
+                            if (!(e.ctrlKey || e.metaKey)) return; // Use OS shortcut
+                            e.preventDefault();
+                            this.redo();
+                            break;
+
+                        case '+':
+                        case '=':
+                            e.preventDefault();
+                            debouncedBrushAdjust(1);
+                            break;
+
+                        case '-':
+                        case '_':
+                            e.preventDefault();
+                            debouncedBrushAdjust(-1);
+                            break;
+
+                        default:
+                            break;
+                    }
                 });
             }
 
@@ -1508,10 +1821,11 @@
             }
 
             clearCanvas() {
-                this.ctx.fillStyle = '#0a0a0a';
+                this.ctx.fillStyle = this.config.visual.backgroundTheme === 'light' ? '#ffffff' : '#0a0a0a';
                 this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
                 this.particles = [];
                 this.shadows = [];
+                this.captureState();
             }
 
             saveArtwork() {
